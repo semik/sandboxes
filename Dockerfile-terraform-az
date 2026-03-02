@@ -42,16 +42,17 @@ RUN curl -fsSL "https://github.com/tofuutils/tenv/releases/download/v${TENV_VERS
 
 # ---- Install OpenTofu via tenv (pinned version) ----
 RUN sed -i 's,/home/ubuntu,/work,' /etc/passwd \
-    && mkdir -p ${HOME}/bin \
-    && chown -R ${UID}:${GID} ${HOME}
+  && sed -i 's,ubuntu:x,semik:x,' /etc/passwd \
+  && mkdir -p ${HOME}/bin \
+  && chown -R ${UID}:${GID} ${HOME}
 USER ${UID}:${GID}
 ENV PATH="${HOME}/bin:${PATH}"
+WORKDIR ${HOME}
 
-RUN tenv tofu install "${TOFU_VERSION}" \
-    && tenv tofu use "${TOFU_VERSION}" \
-    && ln -sf "${HOME}/.tenv/OpenTofu/${TOFU_VERSION}/tofu" "${HOME}/bin/tofu"
+# RUN tenv tofu install "${TOFU_VERSION}" \
+#     && tenv tofu use "${TOFU_VERSION}" \
+#     && ln -sf "${HOME}/.tenv/OpenTofu/${TOFU_VERSION}/tofu" "${HOME}/bin/tofu"
 
-# Print versions to verify installation
-RUN az version \
-  && tenv --version \
-  && "${HOME}/bin/tofu" version
+# # Print versions to verify installation
+# RUN az version \
+#   && tenv --version

@@ -1,0 +1,57 @@
+FROM ubuntu:24.04
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+# ---- Versions you can override at build time ----
+ARG TENV_VERSION=4.9.3
+ARG TOFU_VERSION=1.10.6
+
+# ---- Non-root user settings ----
+ARG USERNAME=ubuntu
+ARG HOME=/work
+ARG UID=1000
+ARG GID=1000
+
+# ---- Base deps ----
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    curl \
+    unzip \
+    git \
+    gnupg \
+    lsb-release \
+  && rm -rf /var/lib/apt/lists/*
+
+# ---- Install Azure CLI (az) from Microsoft's repo ----
+RUN mkdir -p /etc/apt/keyrings \
+  && curl -sLS https://packages.microsoft.com/keys/microsoft.asc \
+    | gpg --dearmor > /etc/apt/keyrings/microsoft.gpg \
+  && chmod go+r /etc/apt/keyrings/microsoft.gpg \
+  && AZ_REPO="$(lsb_release -cs)" \
+  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/azure-cli/ ${AZ_REPO} main" \
+    > /etc/apt/sources.list.d/azure-cli.list \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends azure-cli \
+  && rm -rf /var/lib/apt/lists/*
+
+# ---- Install tenv ----
+# Installs to /usr/local/bin/tenv
+RUN curl -fsSL "https://github.com/tofuutils/tenv/releases/download/v${TENV_VERSION}/tenv_v${TENV_VERSION}_linux_x86_64.tar.gz" \
+    | tar -xzv -C /usr/local/bin tenv \
+  && chmod +x /usr/local/bin/tenv
+
+# ---- Install OpenTofu via tenv (pinned version) ----
+RUN sed -i 's,/home/ubuntu,/work,' /etc/passwd \
+    && mkdir -p ${HOME}/bin \
+    && chown -R ${UID}:${GID} ${HOME}
+USER ${UID}:${GID}
+ENV PATH="${HOME}/bin:${PATH}"
+
+RUN tenv tofu install "${TOFU_VERSION}" \
+    && tenv tofu use "${TOFU_VERSION}" \
+    && ln -sf "${HOME}/.tenv/OpenTofu/${TOFU_VERSION}/tofu" "${HOME}/bin/tofu"
+
+# Print versions to verify installation
+RUN az version \
+  && tenv --version \
+  && "${HOME}/bin/tofu" version

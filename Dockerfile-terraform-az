@@ -4,7 +4,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 
 # ---- Versions you can override at build time ----
 ARG TENV_VERSION=4.9.3
-ARG TOFU_VERSION=1.10.6
+ARG KUBECTL_CHANNEL=v1.31
 
 # ---- Non-root user settings ----
 ARG USERNAME=ubuntu
@@ -34,6 +34,18 @@ RUN mkdir -p /etc/apt/keyrings \
   && apt-get install -y --no-install-recommends azure-cli \
   && rm -rf /var/lib/apt/lists/*
 
+# ---- Install kubectl (apt) ----
+# Override at build time e.g.: --build-arg KUBECTL_CHANNEL=v1.32
+RUN mkdir -p /etc/apt/keyrings \
+  && curl -fsSL "https://pkgs.k8s.io/core:/stable:/${KUBECTL_CHANNEL}/deb/Release.key" \
+    | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg \
+  && chmod 0644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg \
+  && echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/${KUBECTL_CHANNEL}/deb/ /" \
+    > /etc/apt/sources.list.d/kubernetes.list \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends kubectl \
+  && rm -rf /var/lib/apt/lists/*
+
 # ---- Install tenv ----
 # Installs to /usr/local/bin/tenv
 RUN curl -fsSL "https://github.com/tofuutils/tenv/releases/download/v${TENV_VERSION}/tenv_v${TENV_VERSION}_linux_x86_64.tar.gz" \
@@ -48,11 +60,3 @@ RUN sed -i 's,/home/ubuntu,/work,' /etc/passwd \
 USER ${UID}:${GID}
 ENV PATH="${HOME}/bin:${PATH}"
 WORKDIR ${HOME}
-
-# RUN tenv tofu install "${TOFU_VERSION}" \
-#     && tenv tofu use "${TOFU_VERSION}" \
-#     && ln -sf "${HOME}/.tenv/OpenTofu/${TOFU_VERSION}/tofu" "${HOME}/bin/tofu"
-
-# # Print versions to verify installation
-# RUN az version \
-#   && tenv --version

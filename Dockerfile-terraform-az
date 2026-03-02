@@ -4,7 +4,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 
 # ---- Versions you can override at build time ----
 ARG TENV_VERSION=4.9.3
-ARG KUBECTL_CHANNEL=v1.31
+ARG KUBECTL_CHANNEL=v1.35
 
 # ---- Non-root user settings ----
 ARG USERNAME=ubuntu
@@ -44,6 +44,18 @@ RUN mkdir -p /etc/apt/keyrings \
     > /etc/apt/sources.list.d/kubernetes.list \
   && apt-get update \
   && apt-get install -y --no-install-recommends kubectl \
+  && rm -rf /var/lib/apt/lists/*
+
+# ---- Install Helm (apt) ----
+# Repo details per https://helm.sh/docs/intro/install/ (Buildkite-hosted APT repo)
+RUN mkdir -p /usr/share/keyrings \
+  && curl -fsSL https://packages.buildkite.com/helm-linux/helm-debian/gpgkey \
+    | gpg --dearmor -o /usr/share/keyrings/helm.gpg \
+  && chmod 0644 /usr/share/keyrings/helm.gpg \
+  && echo "deb [signed-by=/usr/share/keyrings/helm.gpg] https://packages.buildkite.com/helm-linux/helm-debian/any/ any main" \
+    > /etc/apt/sources.list.d/helm-stable-debian.list \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends helm \
   && rm -rf /var/lib/apt/lists/*
 
 # ---- Install tenv ----

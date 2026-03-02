@@ -20,7 +20,20 @@ RUN apt-get update && apt-get install -y \
     git \
     gnupg \
     lsb-release \
+    bash-completion \
   && rm -rf /var/lib/apt/lists/*
+
+# Ensure bash completion is enabled for login shells (/etc/profile -> /etc/profile.d/*.sh)
+RUN printf '%s\n' \
+  'if [ -n "$BASH_VERSION" ] && [ -f /usr/share/bash-completion/bash_completion ]; then' \
+  '  . /usr/share/bash-completion/bash_completion' \
+  'fi' \
+  > /etc/profile.d/bash_completion.sh
+
+# Ensure bash completion is enabled for interactive non-login shells (/etc/bash.bashrc)
+RUN if ! grep -q '/usr/share/bash-completion/bash_completion' /etc/bash.bashrc; then \
+      printf '\n# Enable bash completion\nif [ -f /usr/share/bash-completion/bash_completion ]; then\n  . /usr/share/bash-completion/bash_completion\nfi\n' >> /etc/bash.bashrc; \
+    fi
 
 # ---- Install Azure CLI (az) from Microsoft's repo ----
 RUN mkdir -p /etc/apt/keyrings \

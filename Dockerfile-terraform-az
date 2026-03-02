@@ -5,12 +5,17 @@ ARG DEBIAN_FRONTEND=noninteractive
 # ---- Versions you can override at build time ----
 ARG TENV_VERSION=4.9.3
 ARG KUBECTL_CHANNEL=v1.35
+ARG KUBELOGIN_VERSION=0.2.15
 
 # ---- Non-root user settings ----
 ARG USERNAME=ubuntu
-ARG HOME=/work
+ARG HOME=/home/ubuntu
 ARG UID=1000
 ARG GID=1000
+
+# OCI runtimes may not set $HOME reliably when running with user namespaces.
+# Export it explicitly so shells and CLIs behave consistently.
+ENV HOME=${HOME}
 
 # ---- Base deps ----
 RUN apt-get update && apt-get install -y \
@@ -71,17 +76,60 @@ RUN mkdir -p /usr/share/keyrings \
   && apt-get install -y --no-install-recommends helm \
   && rm -rf /var/lib/apt/lists/*
 
+# ---- Install kubelogin (GitHub release) ----
+RUN set -eux; \
+  arch="$(dpkg --print-architecture)"; \
+  case "${arch}" in \
+    amd64) kubelogin_arch="linux-amd64" ;; \
+    arm64) kubelogin_arch="linux-arm64" ;; \
+    armhf) kubelogin_arch="linux-armv7" ;; \
+    *) echo "Unsupported architecture for kubelogin: ${arch}" >&2; exit 1 ;; \
+  esac; \
+  base="kubelogin-${kubelogin_arch}.zip"; \
+  url="https://github.com/Azure/kubelogin/releases/download/v${KUBELOGIN_VERSION}/${base}"; \
+  curl -fsSL -o "/tmp/${base}" "${url}"; \
+  curl -fsSL -o "/tmp/${base}.sha256" "${url}.sha256"; \
+  (cd /tmp && sha256sum -c "${base}.sha256"); \
+  rm -rf /tmp/kubelogin-unpack; \
+  unzip -q "/tmp/${base}" -d /tmp/kubelogin-unpack; \
+  kubelogin_bin="$(find /tmp/kubelogin-unpack -type f -name kubelogin | head -n 1)"; \
+  test -n "${kubelogin_bin}"; \
+  install -m 0755 "${kubelogin_bin}" /usr/local/bin/kubelogin; \
+  ls -l /usr/local/bin/kubelogin; \
+  /usr/local/bin/kubelogin --version; \
+  rm -rf "/tmp/${base}" "/tmp/${base}.sha256" /tmp/kubelogin-unpack
+
+# ---- Bash completion for installed CLIs ----
+RUN mkdir -p /etc/bash_completion.d \
+  && kubectl completion bash > /etc/bash_completion.d/kubectl \
+  && helm completion bash > /etc/bash_completion.d/helm \
+  && ( \
+    if az completion -h >/dev/null 2>&1; then \
+      (az completion -o bash 2>/dev/null || az completion --shell bash 2>/dev/null) > /etc/bash_completion.d/az \
+        || echo "Azure CLI completion command exists but failed; skipping." >&2; \
+    elif [ -f /usr/share/bash-completion/completions/azure-cli ]; then \
+      cp /usr/share/bash-completion/completions/azure-cli /etc/bash_completion.d/az; \
+    elif [ -f /usr/share/bash-completion/completions/az ]; then \
+      cp /usr/share/bash-completion/completions/az /etc/bash_completion.d/az; \
+    elif [ -f /etc/bash_completion.d/azure-cli ]; then \
+      cp /etc/bash_completion.d/azure-cli /etc/bash_completion.d/az; \
+    else \
+      echo "Azure CLI bash completion script not found; skipping." >&2; \
+    fi \
+  )
+
 # ---- Install tenv ----
 # Installs to /usr/local/bin/tenv
 RUN curl -fsSL "https://github.com/tofuutils/tenv/releases/download/v${TENV_VERSION}/tenv_v${TENV_VERSION}_linux_x86_64.tar.gz" \
     | tar -xzv -C /usr/local/bin tenv \
   && chmod +x /usr/local/bin/tenv
 
-# ---- Install OpenTofu via tenv (pinned version) ----
-RUN sed -i 's,/home/ubuntu,/work,' /etc/passwd \
-  && sed -i 's,ubuntu:x,semik:x,' /etc/passwd \
-  && mkdir -p ${HOME}/bin \
-  && chown -R ${UID}:${GID} ${HOME}
-USER ${UID}:${GID}
+# ---- Create non-root user and workspace dirs ----
+RUN mkdir -p ${HOME}/bin /work \
+  && chown -R ${UID}:${GID} ${HOME} /work
+USER ${USERNAME}
 ENV PATH="${HOME}/bin:${PATH}"
-WORKDIR ${HOME}
+WORKDIR /work
+
+# Start an interactive login shell by default so /etc/profile.d/* runs and bash-completion is enabled.
+CMD ["bash", "-l"]

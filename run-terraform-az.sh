@@ -10,7 +10,9 @@ else
   WORK_DIR_HOST="${WORK_DIR_HOST:-$PWD}"
   MOUNT_WORK=true
 fi
-NAME="${NAME:-azure-env}"
+BASE_NAME="${NAME:-azure-env}"
+RUN_TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+NAME="${BASE_NAME}-${RUN_TIMESTAMP}"
 HOSTNAME_VALUE="${HOSTNAME_VALUE:-azure-env}"
 
 CONTAINER_HOME="${CONTAINER_HOME:-/home/ubuntu}"

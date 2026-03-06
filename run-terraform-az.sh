@@ -2,6 +2,14 @@
 set -euo pipefail
 
 IMAGE="${IMAGE:-terraform-az:latest}"
+
+if [[ "$PWD" == "$HOME" ]]; then
+  echo "[WARNING] Not mounting entire home directory as /work. Proceeding without /work mount."
+  MOUNT_WORK=false
+else
+  WORK_DIR_HOST="${WORK_DIR_HOST:-$PWD}"
+  MOUNT_WORK=true
+fi
 NAME="${NAME:-azure-env}"
 HOSTNAME_VALUE="${HOSTNAME_VALUE:-azure-env}"
 
@@ -32,11 +40,14 @@ args=(
   --userns=keep-id
   -e "HOME=${CONTAINER_HOME}"
   -v "${HOME_DIR_HOST}:${CONTAINER_HOME}:Z"
-  -v "${WORK_DIR_HOST}:/work:Z"
   -v "${AZURE_DIR_HOST}:${CONTAINER_HOME}/.azure:Z"
-  -w /work
   "${IMAGE}"
 )
+
+# Only mount /work if not running from $HOME
+if [[ "${MOUNT_WORK}" == true ]]; then
+  args=("${args[@]:0:8}" -v "${WORK_DIR_HOST}:/work:Z" "${args[@]:8}")
+fi
 
 if [[ $# -gt 0 ]]; then
   exec podman "${args[@]}" "$@"

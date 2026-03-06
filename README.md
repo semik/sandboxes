@@ -2,7 +2,7 @@
 
 ## terraform-az container
 
-Is designed for Terraform development with Azure. It includes the Azure CLI (`az`), Terraform, and related tools.
+Is designed for Terraform development with Azure. It includes the Azure CLI (`az`), Terraform, Kubernetes tools (`kubectl`, `helm`, `kubelogin`), and k9s for Kubernetes cluster management.
 
 Build:
 
@@ -34,10 +34,29 @@ podman run --hostname azure-env --name azure-env -it --rm --userns=keep-id \
 ```
 
 Notes:
-- The script bind-mounts `${HOME}/Sync/3K/azure-env` (if it exists) to `/home/ubuntu` (persistent sandbox home).
-- The script bind-mounts `$PWD` to `/work` and starts you in `/work`.
-- The script bind-mounts `$HOME/.azure` to `/home/ubuntu/.azure`.
-- The script sets `HOME=/home/ubuntu` explicitly (Podman `--userns=keep-id` may otherwise set `HOME` to the working directory).
+
+## Included tools
+
+- Azure CLI (`az`)
+- Terraform
+- Kubernetes CLI (`kubectl`)
+- Helm
+- kubelogin
+- k9s (Kubernetes cluster management)
+
+## Using k9s
+
+To launch k9s in the container:
+
+```bash
+./run-terraform-az.sh k9s
+```
+
+Or interactively:
+
+```bash
+podman run ... terraform-az:latest k9s
+```
 - The image default command is `bash -l` so bash-completion loads.
 
 Included CLIs:

@@ -6,6 +6,8 @@ ARG DEBIAN_FRONTEND=noninteractive
 ARG TENV_VERSION=4.9.3
 ARG KUBECTL_CHANNEL=v1.35
 ARG KUBELOGIN_VERSION=0.2.15
+# https://github.com/derailed/k9s/releases/
+ARG K9S_VERSION=v0.50.18
 
 # ---- Non-root user settings ----
 ARG USERNAME=ubuntu
@@ -123,6 +125,23 @@ RUN mkdir -p /etc/bash_completion.d \
 RUN curl -fsSL "https://github.com/tofuutils/tenv/releases/download/v${TENV_VERSION}/tenv_v${TENV_VERSION}_linux_x86_64.tar.gz" \
     | tar -xzv -C /usr/local/bin tenv \
   && chmod +x /usr/local/bin/tenv
+
+# ---- Install k9s (GitHub release) ----
+RUN set -eux; \
+  arch="$(dpkg --print-architecture)"; \
+  case "$arch" in \
+    amd64) k9s_arch="Linux_amd64" ;; \
+    arm64) k9s_arch="Linux_arm64" ;; \
+    armhf) k9s_arch="Linux_armv7" ;; \
+    *) echo "Unsupported architecture for k9s: $arch" >&2; exit 1 ;; \
+  esac; \
+  base="k9s_${k9s_arch}.tar.gz"; \
+  url="https://github.com/derailed/k9s/releases/download/${K9S_VERSION}/${base}"; \
+  curl -fsSL -o "/tmp/${base}" "$url"; \
+  tar -xzvf "/tmp/${base}" -C /usr/local/bin k9s; \
+  chmod +x /usr/local/bin/k9s; \
+  rm -f "/tmp/${base}"; \
+  /usr/local/bin/k9s version || true
 
 # ---- Create non-root user and workspace dirs ----
 RUN mkdir -p ${HOME}/bin /work \

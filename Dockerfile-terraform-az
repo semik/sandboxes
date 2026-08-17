@@ -27,8 +27,7 @@ RUN apt-get update && apt-get install -y \
     git \
     gnupg \
     lsb-release \
-    bash-completion \
-  && rm -rf /var/lib/apt/lists/*
+    bash-completion
 
 # Ensure bash completion is enabled for login shells (/etc/profile -> /etc/profile.d/*.sh)
 RUN printf '%s\n' \
@@ -51,8 +50,7 @@ RUN mkdir -p /etc/apt/keyrings \
   && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/azure-cli/ ${AZ_REPO} main" \
     > /etc/apt/sources.list.d/azure-cli.list \
   && apt-get update \
-  && apt-get install -y --no-install-recommends azure-cli \
-  && rm -rf /var/lib/apt/lists/*
+  && apt-get install -y --no-install-recommends azure-cli
 
 # ---- Install kubectl (apt) ----
 # Override at build time e.g.: --build-arg KUBECTL_CHANNEL=v1.32
@@ -63,8 +61,7 @@ RUN mkdir -p /etc/apt/keyrings \
   && echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/${KUBECTL_CHANNEL}/deb/ /" \
     > /etc/apt/sources.list.d/kubernetes.list \
   && apt-get update \
-  && apt-get install -y --no-install-recommends kubectl \
-  && rm -rf /var/lib/apt/lists/*
+  && apt-get install -y --no-install-recommends kubectl
 
 # ---- Install Helm (apt) ----
 # Repo details per https://helm.sh/docs/intro/install/ (Buildkite-hosted APT repo)
@@ -75,8 +72,7 @@ RUN mkdir -p /usr/share/keyrings \
   && echo "deb [signed-by=/usr/share/keyrings/helm.gpg] https://packages.buildkite.com/helm-linux/helm-debian/any/ any main" \
     > /etc/apt/sources.list.d/helm-stable-debian.list \
   && apt-get update \
-  && apt-get install -y --no-install-recommends helm \
-  && rm -rf /var/lib/apt/lists/*
+  && apt-get install -y --no-install-recommends helm
 
 # ---- Install kubelogin (GitHub release) ----
 RUN set -eux; \
@@ -142,6 +138,12 @@ RUN set -eux; \
   chmod +x /usr/local/bin/k9s; \
   rm -f "/tmp/${base}"; \
   /usr/local/bin/k9s version || true
+
+# ---- Install some software to be able work inside ----
+RUN apt-get install -y vim
+
+# ---- Cleanup -----
+RUN rm -rf /var/lib/apt/lists/*
 
 # ---- Create non-root user and workspace dirs ----
 RUN mkdir -p ${HOME}/bin /work \

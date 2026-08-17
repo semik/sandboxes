@@ -33,6 +33,18 @@ WORK_DIR_HOST="${WORK_DIR_HOST:-$PWD}"
 # Pass your host Azure CLI auth into the container (optional).
 AZURE_DIR_HOST="${AZURE_DIR_HOST:-${HOME}/.azure}"
 
+# Persistent Claude Code config. Deliberately NOT under ~/Sync -- that is a
+# Syncthing folder, and .credentials.json holds a long-lived OAuth token.
+# CLAUDE_CONFIG_DIR (set below) also pulls ~/.claude.json into this directory;
+# without it that file would land in the synced sandbox home instead.
+CLAUDE_DIR_HOST="${CLAUDE_DIR_HOST:-${HOME}/.local/share/azure-env-claude}"
+mkdir -p "${CLAUDE_DIR_HOST}"
+
+# Pre-create the nested mountpoints inside the sandbox home. They stay empty --
+# the bind mounts above cover them -- but creating them here keeps them owned by
+# us rather than by a user-namespace-mapped uid that podman would invent.
+mkdir -p "${HOME_DIR_HOST}/.claude" "${HOME_DIR_HOST}/.azure"
+
 args=(
   run
   --hostname "${HOSTNAME_VALUE}"
@@ -41,18 +53,18 @@ args=(
   --rm
   --userns=keep-id
   -e "HOME=${CONTAINER_HOME}"
+  -e "CLAUDE_CONFIG_DIR=${CONTAINER_HOME}/.claude"
   -v "${HOME_DIR_HOST}:${CONTAINER_HOME}:Z"
   -v "${AZURE_DIR_HOST}:${CONTAINER_HOME}/.azure:Z"
-  "${IMAGE}"
+  -v "${CLAUDE_DIR_HOST}:${CONTAINER_HOME}/.claude:Z"
 )
 
 # Only mount /work if not running from $HOME
 if [[ "${MOUNT_WORK}" == true ]]; then
-  args=("${args[@]:0:8}" -v "${WORK_DIR_HOST}:/work:Z" "${args[@]:8}")
+  args+=(-v "${WORK_DIR_HOST}:/work:Z")
 fi
 
-if [[ $# -gt 0 ]]; then
-  exec podman "${args[@]}" "$@"
-else
-  exec podman "${args[@]}"
-fi
+# The image must stay last; anything after it is passed to the container.
+args+=("${IMAGE}")
+
+exec podman "${args[@]}" "$@"

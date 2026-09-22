@@ -204,6 +204,9 @@ ENV DISABLE_AUTOUPDATER=1
 # Nothing sets SHELL when a command (e.g. zellij) runs without a login shell;
 # zellij and friends use it to pick the shell for new panes.
 ENV SHELL=/bin/bash
+# The wrapper passes no host environment through, so advertise 24-bit color
+# support explicitly for zellij, vim, k9s etc.
+ENV COLORTERM=truecolor
 WORKDIR /work
 
 # Start an interactive login shell by default so /etc/profile.d/* runs and bash-completion is enabled.

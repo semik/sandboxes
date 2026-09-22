@@ -8,13 +8,16 @@ ARG KUBECTL_CHANNEL=v1.35
 ARG KUBELOGIN_VERSION=0.2.15
 # https://github.com/derailed/k9s/releases/
 ARG K9S_VERSION=v0.50.18
+# https://github.com/zellij-org/zellij/releases/
+ARG ZELLIJ_VERSION=v0.45.1
 # https://github.com/anthropics/claude-code/releases (apt: stable channel)
 # Leave empty to track the repo's newest stable at build time.
-ARG CLAUDE_CODE_VERSION=2.1.126-1
+ARG CLAUDE_CODE_VERSION=2.1.227-1
 
 # ---- Non-root user settings ----
-ARG USERNAME=ubuntu
-ARG HOME=/home/ubuntu
+# The base image's ubuntu user (uid 1000) gets renamed to this.
+ARG USERNAME=u
+ARG HOME=/home/u
 ARG UID=1000
 ARG GID=1000
 
@@ -160,18 +163,47 @@ RUN set -eux; \
   claude --version
 
 # ---- Install some software to be able work inside ----
-RUN apt-get install -y vim
+RUN apt-get update && apt-get install -y vim mc openssh-client tmux
+
+# ---- Install zellij (GitHub release) ----
+RUN set -eux; \
+  arch="$(dpkg --print-architecture)"; \
+  case "$arch" in \
+    amd64) zellij_arch="x86_64-unknown-linux-musl" ;; \
+    arm64) zellij_arch="aarch64-unknown-linux-musl" ;; \
+    *) echo "Unsupported architecture for zellij: $arch" >&2; exit 1 ;; \
+  esac; \
+  base="zellij-${zellij_arch}"; \
+  url="https://github.com/zellij-org/zellij/releases/download/${ZELLIJ_VERSION}"; \
+  curl -fsSL -o "/tmp/${base}.tar.gz" "${url}/${base}.tar.gz"; \
+  curl -fsSL -o "/tmp/${base}.sha256sum" "${url}/${base}.sha256sum"; \
+  tar -xzf "/tmp/${base}.tar.gz" -C /tmp zellij; \
+  # The published checksum is of the extracted binary, not the tarball.
+  echo "$(cut -d' ' -f1 "/tmp/${base}.sha256sum")  /tmp/zellij" | sha256sum -c -; \
+  install -m 0755 /tmp/zellij /usr/local/bin/zellij; \
+  rm -f "/tmp/${base}.tar.gz" "/tmp/${base}.sha256sum" /tmp/zellij; \
+  /usr/local/bin/zellij --version
 
 # ---- Cleanup -----
 RUN rm -rf /var/lib/apt/lists/*
 
-# ---- Create non-root user and workspace dirs ----
-RUN mkdir -p ${HOME}/bin /work \
+# ---- Rename the base image's ubuntu user and create workspace dirs ----
+# ${HOME} may already exist (build steps above run with ENV HOME set), so
+# merge the old home into it instead of usermod --move-home.
+RUN mkdir -p ${HOME} \
+  && usermod --login ${USERNAME} --home ${HOME} ubuntu \
+  && groupmod --new-name ${USERNAME} ubuntu \
+  && cp -a /home/ubuntu/. ${HOME}/ \
+  && rm -rf /home/ubuntu \
+  && mkdir -p ${HOME}/bin /work \
   && chown -R ${UID}:${GID} ${HOME} /work
 USER ${USERNAME}
 ENV PATH="${HOME}/bin:${PATH}"
 # The Claude Code version is pinned by apt; don't let it update itself out from under the image.
 ENV DISABLE_AUTOUPDATER=1
+# Nothing sets SHELL when a command (e.g. zellij) runs without a login shell;
+# zellij and friends use it to pick the shell for new panes.
+ENV SHELL=/bin/bash
 WORKDIR /work
 
 # Start an interactive login shell by default so /etc/profile.d/* runs and bash-completion is enabled.

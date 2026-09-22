@@ -43,7 +43,8 @@ RUN printf '%s\n' \
   > /etc/profile.d/bash_completion.sh
 
 # Ensure bash completion is enabled for interactive non-login shells (/etc/bash.bashrc)
-RUN if ! grep -q '/usr/share/bash-completion/bash_completion' /etc/bash.bashrc; then \
+# (Ubuntu ships this reference commented out, so only match uncommented lines.)
+RUN if ! grep -Eq '^[[:space:]]*[^#[:space:]].*bash-completion/bash_completion' /etc/bash.bashrc; then \
       printf '\n# Enable bash completion\nif [ -f /usr/share/bash-completion/bash_completion ]; then\n  . /usr/share/bash-completion/bash_completion\nfi\n' >> /etc/bash.bashrc; \
     fi
 
@@ -183,6 +184,25 @@ RUN set -eux; \
   install -m 0755 /tmp/zellij /usr/local/bin/zellij; \
   rm -f "/tmp/${base}.tar.gz" "/tmp/${base}.sha256sum" /tmp/zellij; \
   /usr/local/bin/zellij --version
+
+# ---- Bash completion for the remaining CLIs ----
+# (kubectl/helm/az are handled above; git and ssh ship with bash-completion.)
+# terraform/tofu are installed per-environment by tenv at runtime, so hook
+# their completion dynamically at shell startup instead of baking it in.
+RUN set -eux; \
+  k9s completion bash > /etc/bash_completion.d/k9s; \
+  zellij setup --generate-completion bash > /etc/bash_completion.d/zellij; \
+  tenv completion bash > /etc/bash_completion.d/tenv; \
+  if kubelogin completion bash > /etc/bash_completion.d/kubelogin 2>/dev/null; then \
+    true; \
+  else \
+    rm -f /etc/bash_completion.d/kubelogin; \
+    echo "kubelogin offers no bash completion; skipping." >&2; \
+  fi; \
+  printf '%s\n' \
+    'command -v terraform >/dev/null && complete -C "$(command -v terraform)" terraform' \
+    'command -v tofu >/dev/null && complete -C "$(command -v tofu)" tofu' \
+    > /etc/bash_completion.d/terraform-tofu
 
 # ---- Cleanup -----
 RUN rm -rf /var/lib/apt/lists/*

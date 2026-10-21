@@ -195,6 +195,11 @@ Designed for Terraform development with Azure. Included tools:
 - OpenSSH client (`ssh`, `ssh-keygen`)
 - Midnight Commander (`mc`)
 - zellij and tmux (terminal multiplexers)
+- Python 3 (with `venv`)
+- xmllint (`libxml2-utils`)
+- rsync
+- Debian packaging tools (`dpkg-dev`, `debhelper`, `make`, `fakeroot`)
+- GitHub CLI (`gh`)
 
 Build:
 

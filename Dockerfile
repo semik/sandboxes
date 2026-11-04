@@ -3,16 +3,18 @@ FROM ubuntu:24.04
 ARG DEBIAN_FRONTEND=noninteractive
 
 # ---- Versions you can override at build time ----
-ARG TENV_VERSION=4.9.3
-ARG KUBECTL_CHANNEL=v1.35
-ARG KUBELOGIN_VERSION=0.2.15
+ARG TENV_VERSION=4.15.1
+ARG KUBECTL_CHANNEL=v1.36
+ARG KUBELOGIN_VERSION=0.2.22
 # https://github.com/derailed/k9s/releases/
-ARG K9S_VERSION=v0.50.18
+ARG K9S_VERSION=v0.51.0
 # https://github.com/zellij-org/zellij/releases/
 ARG ZELLIJ_VERSION=v0.45.1
+# https://github.com/mikefarah/yq/releases/
+ARG YQ_VERSION=v4.54.1
 # https://github.com/anthropics/claude-code/releases (apt: stable channel)
 # Leave empty to track the repo's newest stable at build time.
-ARG CLAUDE_CODE_VERSION=2.1.227-1
+ARG CLAUDE_CODE_VERSION=2.1.311-1
 
 # ---- Non-root user settings ----
 # The base image's ubuntu user (uid 1000) gets renamed to this.
@@ -167,7 +169,8 @@ RUN set -eux; \
 RUN apt-get update && apt-get install -y vim mc openssh-client tmux \
     python3 python3-venv libxml2-utils \
     rsync \
-    dpkg-dev debhelper make fakeroot
+    dpkg-dev debhelper make fakeroot \
+    jq bind9-dnsutils
 
 # ---- Install GitHub CLI (gh) from GitHub's apt repo ----
 # Repo details per https://github.com/cli/cli/blob/trunk/docs/install_linux.md
@@ -200,6 +203,28 @@ RUN set -eux; \
   rm -f "/tmp/${base}.tar.gz" "/tmp/${base}.sha256sum" /tmp/zellij; \
   /usr/local/bin/zellij --version
 
+# ---- Install yq (mikefarah, GitHub release) ----
+RUN set -eux; \
+  arch="$(dpkg --print-architecture)"; \
+  case "$arch" in \
+    amd64) yq_arch="linux_amd64" ;; \
+    arm64) yq_arch="linux_arm64" ;; \
+    *) echo "Unsupported architecture for yq: $arch" >&2; exit 1 ;; \
+  esac; \
+  base="yq_${yq_arch}"; \
+  url="https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}"; \
+  curl -fsSL -o "/tmp/${base}.tar.gz" "${url}/${base}.tar.gz"; \
+  curl -fsSL -o /tmp/yq-checksums "${url}/checksums"; \
+  curl -fsSL -o /tmp/yq-checksums-order "${url}/checksums_hashes_order"; \
+  # 'checksums' is a multi-hash table; pick the SHA-256 column by its position
+  # in checksums_hashes_order (+1 because column 1 is the file name).
+  col=$(( $(grep -n '^SHA-256$' /tmp/yq-checksums-order | cut -d: -f1) + 1 )); \
+  echo "$(awk -v f="${base}.tar.gz" -v c="$col" '$1==f {print $c}' /tmp/yq-checksums)  /tmp/${base}.tar.gz" | sha256sum -c -; \
+  tar -xzf "/tmp/${base}.tar.gz" -C /tmp "./${base}"; \
+  install -m 0755 "/tmp/${base}" /usr/local/bin/yq; \
+  rm -f "/tmp/${base}.tar.gz" "/tmp/${base}" /tmp/yq-checksums /tmp/yq-checksums-order; \
+  /usr/local/bin/yq --version
+
 # ---- Bash completion for the remaining CLIs ----
 # (kubectl/helm/az are handled above; git and ssh ship with bash-completion.)
 # terraform/tofu are installed per-environment by tenv at runtime, so hook
@@ -207,6 +232,7 @@ RUN set -eux; \
 RUN set -eux; \
   k9s completion bash > /etc/bash_completion.d/k9s; \
   gh completion -s bash > /etc/bash_completion.d/gh; \
+  yq shell-completion bash > /etc/bash_completion.d/yq; \
   zellij setup --generate-completion bash > /etc/bash_completion.d/zellij; \
   tenv completion bash > /etc/bash_completion.d/tenv; \
   if kubelogin completion bash > /etc/bash_completion.d/kubelogin 2>/dev/null; then \

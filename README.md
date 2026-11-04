@@ -175,7 +175,7 @@ The version is pinned by apt via the `CLAUDE_CODE_VERSION` build arg, and
 image. To bump:
 
 ```bash
-podman build --build-arg CLAUDE_CODE_VERSION=2.1.130-1 -t sandbox:latest .
+podman build --build-arg CLAUDE_CODE_VERSION=2.1.311-1 -t sandbox:latest .
 ```
 
 Build with `--build-arg CLAUDE_CODE_VERSION=` (empty) to take whatever is
@@ -200,6 +200,8 @@ Designed for Terraform development with Azure. Included tools:
 - rsync
 - Debian packaging tools (`dpkg-dev`, `debhelper`, `make`, `fakeroot`)
 - GitHub CLI (`gh`)
+- jq and yq (mikefarah)
+- dig / nslookup (`bind9-dnsutils`)
 
 Build:
 

@@ -200,6 +200,7 @@ Designed for Terraform development with Azure. Included tools:
 - rsync
 - Debian packaging tools (`dpkg-dev`, `debhelper`, `make`, `fakeroot`)
 - GitHub CLI (`gh`)
+- Hetzner Cloud CLI (`hcloud`)
 - jq and yq (mikefarah)
 - dig / nslookup (`bind9-dnsutils`)
 

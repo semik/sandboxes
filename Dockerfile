@@ -12,6 +12,8 @@ ARG K9S_VERSION=v0.51.0
 ARG ZELLIJ_VERSION=v0.45.1
 # https://github.com/mikefarah/yq/releases/
 ARG YQ_VERSION=v4.54.1
+# https://github.com/hetznercloud/cli/releases/
+ARG HCLOUD_VERSION=v1.70.2
 # https://github.com/anthropics/claude-code/releases (apt: stable channel)
 # Leave empty to track the repo's newest stable at build time.
 ARG CLAUDE_CODE_VERSION=2.1.311-1
@@ -225,6 +227,25 @@ RUN set -eux; \
   rm -f "/tmp/${base}.tar.gz" "/tmp/${base}" /tmp/yq-checksums /tmp/yq-checksums-order; \
   /usr/local/bin/yq --version
 
+# ---- Install hcloud (Hetzner Cloud CLI, GitHub release) ----
+RUN set -eux; \
+  arch="$(dpkg --print-architecture)"; \
+  case "$arch" in \
+    amd64) hcloud_arch="linux-amd64" ;; \
+    arm64) hcloud_arch="linux-arm64" ;; \
+    armhf) hcloud_arch="linux-armv7" ;; \
+    *) echo "Unsupported architecture for hcloud: $arch" >&2; exit 1 ;; \
+  esac; \
+  base="hcloud-${hcloud_arch}.tar.gz"; \
+  url="https://github.com/hetznercloud/cli/releases/download/${HCLOUD_VERSION}"; \
+  curl -fsSL -o "/tmp/${base}" "${url}/${base}"; \
+  curl -fsSL -o /tmp/hcloud-checksums.txt "${url}/checksums.txt"; \
+  (cd /tmp && grep " ${base}\$" hcloud-checksums.txt | sha256sum -c -); \
+  tar -xzf "/tmp/${base}" -C /tmp hcloud; \
+  install -m 0755 /tmp/hcloud /usr/local/bin/hcloud; \
+  rm -f "/tmp/${base}" /tmp/hcloud-checksums.txt /tmp/hcloud; \
+  /usr/local/bin/hcloud version
+
 # ---- Bash completion for the remaining CLIs ----
 # (kubectl/helm/az are handled above; git and ssh ship with bash-completion.)
 # terraform/tofu are installed per-environment by tenv at runtime, so hook
@@ -233,6 +254,7 @@ RUN set -eux; \
   k9s completion bash > /etc/bash_completion.d/k9s; \
   gh completion -s bash > /etc/bash_completion.d/gh; \
   yq shell-completion bash > /etc/bash_completion.d/yq; \
+  hcloud completion bash > /etc/bash_completion.d/hcloud; \
   zellij setup --generate-completion bash > /etc/bash_completion.d/zellij; \
   tenv completion bash > /etc/bash_completion.d/tenv; \
   if kubelogin completion bash > /etc/bash_completion.d/kubelogin 2>/dev/null; then \
